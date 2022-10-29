@@ -31,6 +31,7 @@ namespace inv.poc
             }
             
             string name = req.Query["name"];
+            log.LogInformation(name);
             var user = req.HttpContext.User;
             foreach (var claim in claimsPrincipal.Claims)
             {

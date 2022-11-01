@@ -70,7 +70,7 @@ public static class StaticWebAppsAuth
         (m) =>
         {
             //log.LogInformation($"role: {m.AppRoleId}");
-            identity.AddClaim(new Claim("AppRole",m.PrincipalDisplayName.ToString()));
+            identity.AddClaim(new Claim("AppRole",m.AppRoleId.ToString()));
             return true;
         },
         // Used to configure subsequent page

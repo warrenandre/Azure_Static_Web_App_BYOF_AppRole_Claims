@@ -56,7 +56,9 @@ public static class StaticWebAppsAuth
             var userRoleAssignments = await graphClient.Users[req.HttpContext.User.Identity.Name].AppRoleAssignments.Request()
             .Select(e => new
             {
-                e.AppRoleId
+                e.AppRoleId,
+                e.ResourceDisplayName,
+                e.PrincipalDisplayName
             }).GetAsync();
             //var graphResult = graphClient.Users[req.HttpContext.User.Identity.Name].Request().GetAsync().Result;
             var pageIterator = PageIterator<AppRoleAssignment>
@@ -68,7 +70,7 @@ public static class StaticWebAppsAuth
         (m) =>
         {
             //log.LogInformation($"role: {m.AppRoleId}");
-            identity.AddClaim(new Claim("AppRole",m.AppRoleId.ToString()));
+            identity.AddClaim(new Claim("AppRole",$"{m.AppRoleId.ToString()} - {m.PrincipalDisplayName} - {m.ResourceDisplayName}"));
             return true;
         },
         // Used to configure subsequent page

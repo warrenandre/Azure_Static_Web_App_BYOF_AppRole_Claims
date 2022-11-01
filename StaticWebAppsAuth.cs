@@ -46,44 +46,61 @@ public static class StaticWebAppsAuth
         identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, principal.UserId));
         identity.AddClaim(new Claim(ClaimTypes.Name, principal.UserDetails));
         identity.AddClaims(principal.UserRoles.Select(r => new Claim(ClaimTypes.Role, r)));
-        await InjectAppRoleAssignments(req,log,identity);
+        await InjectAppRoleAssignments(req, log, identity);
         return new ClaimsPrincipal(identity);
     }
 
-    public static async Task InjectAppRoleAssignments(HttpRequest req, ILogger log,ClaimsIdentity identity){
+    public static async Task InjectAppRoleAssignments(HttpRequest req, ILogger log, ClaimsIdentity identity)
+    {
         GraphServiceClient graphClient = GetUserMicrosoftGraph.GetAuthenticatedGraphClient();
-            log.LogInformation($"user: {req.HttpContext.User.Identity.Name}");
-            var userRoleAssignments = await graphClient.Users[req.HttpContext.User.Identity.Name].AppRoleAssignments.Request()
-            .Select(e => new
-            {
-                e.AppRoleId,
-                e.ResourceDisplayName,
-                e.PrincipalDisplayName
-            }).GetAsync();
-            //var graphResult = graphClient.Users[req.HttpContext.User.Identity.Name].Request().GetAsync().Result;
-            var pageIterator = PageIterator<AppRoleAssignment>
-    .CreatePageIterator(
-        graphClient,
-        userRoleAssignments,
-        // Callback executed for each item in
-        // the collection
-        (m) =>
+        log.LogInformation($"user: {req.HttpContext.User.Identity.Name}");
+        var roleIds = new List<string>();
+        var userRoleAssignments = await graphClient.Users[req.HttpContext.User.Identity.Name].AppRoleAssignments.Request()
+        .Select(e => new
         {
-            //log.LogInformation($"role: {m.AppRoleId}");
-            identity.AddClaim(new Claim("AppRole",m.AppRoleId.ToString()));
-            return true;
-        },
-        // Used to configure subsequent page
-        // requests
-        (req) =>
+            e.AppRoleId,
+            e.ResourceDisplayName,
+            e.PrincipalDisplayName
+        }).GetAsync();
+        //var graphResult = graphClient.Users[req.HttpContext.User.Identity.Name].Request().GetAsync().Result;
+        var pageIterator = PageIterator<AppRoleAssignment>
+.CreatePageIterator(
+    graphClient,
+    userRoleAssignments,
+    // Callback executed for each item in
+    // the collection
+    (m) =>
+    {
+        if (m.AppRoleId.ToString() != "00000000-0000-0000-0000-000000000000")
         {
-            // Re-add the header to subsequent requests
-            req.Header("Prefer", "outlook.body-content-type=\"text\"");
-            return req;
-        });
+            roleIds.Add(m.AppRoleId.ToString());
+            identity.AddClaim(new Claim("AppRoleId", m.AppRoleId.ToString()));
+        }
+        return true;
+    },
+    // Used to configure subsequent page
+    // requests
+    (req) =>
+    {
+        // Re-add the header to subsequent requests
+        req.Header("Prefer", "outlook.body-content-type=\"text\"");
+        return req;
+    });
 
-            await pageIterator.IterateAsync();
+        await pageIterator.IterateAsync();
+
+        //here we loop through appRoles assigned and inject Approle value into claims
+        foreach (var roleId in roleIds)
+        {
+                var application = await graphClient.Applications["746a425a-0078-41d3-9226-f6cf56f7a7fe"].Request()
+	.GetAsync();
+    //log.LogInformation($"app -{application.DisplayName}");
+    log.LogInformation($"Role: {application.AppRoles.FirstOrDefault(x=> x.Id.ToString() == roleId).Value}");
+    identity.AddClaim(new Claim("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", application.AppRoles.FirstOrDefault(x=> x.Id.ToString() == roleId).Value));
+        }
     }
+
+
 }
 
 public static class GetUserMicrosoftGraph
@@ -120,7 +137,7 @@ public static class GetUserMicrosoftGraph
     }
 }
 
-public class MsalAuthenticationProvider: IAuthenticationProvider
+public class MsalAuthenticationProvider : IAuthenticationProvider
 {
     private IConfidentialClientApplication _clientApplication;
     private string[] _scopes;
@@ -137,7 +154,7 @@ public class MsalAuthenticationProvider: IAuthenticationProvider
     public async Task AuthenticateRequestAsync(HttpRequestMessage request)
     {
         var token = await GetTokenAsync();
-        
+
         request.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
     }
 

@@ -90,6 +90,7 @@ public static class StaticWebAppsAuth
         await pageIterator.IterateAsync();
 
         //here we loop through appRoles assigned and inject Approle value into claims
+        // need to see if this can be done with just one call to MS graph. perhaps using ID is a better option
         foreach (var roleId in roleIds)
         {
                 var application = await graphClient.Applications["746a425a-0078-41d3-9226-f6cf56f7a7fe"].Request()
